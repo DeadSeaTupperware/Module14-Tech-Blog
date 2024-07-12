@@ -1,10 +1,12 @@
 const router = require('express').Router();
-const { Post, User, Comment } = require('../models');
+const { User, Post, Comment } = require('../models');
+const withAuth = require('../utils/auth');
 const sequelize = require('../config/connection');
 
-router.get('/', async (req, res) => {
+router.get('/', withAuth, async (req, res) => {
   try {
     const dbPostData = await Post.findAll({
+      where: { user_id: req.session.user_id },
       attibutes: ['id', 'title', 'content', 'created_at'],
       include: [
         {
@@ -33,34 +35,39 @@ router.get('/', async (req, res) => {
     const posts = dbPostData.map((post) => post.get({ plain: true }));
     console.log(posts);
 
-    res.render('homepage', {
+    res.render('dashboard', {
       posts,
-      loggedIn: req.session.loggedIn,
+      loggedIn: true,
       username: req.session.username,
-      user_id: req.session.user_id,
     });
   } catch (err) {
     res.status(500).json(err);
   }
 });
 
-router.get('/post/:id', async (req, res) => {
+router.get('/edit/:id', withAuth, async (req, res) => {
   try {
     const dbPostData = await Post.findByPk({
       where: { id: req.params.id },
       attributes: ['id', 'content', 'title', 'created_at'],
       include: [
         {
+          model: User,
+          attributes: ['username'],
+        },
+        {
           model: Comment,
-          attributes: ['id', 'comment', 'post_id', 'user_id', 'created_at'],
+          attributes: [
+            'id',
+            'comment_text',
+            'post_id',
+            'user_id',
+            'created_at',
+          ],
           include: {
             model: User,
             attributes: ['username'],
           },
-        },
-        {
-          model: User,
-          attributes: ['username'],
         },
       ],
     });
@@ -78,19 +85,12 @@ router.get('/post/:id', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json(err);
+    console.log(err);
   }
 });
 
-router.get('/login', (req, res) => {
-  if (req.session.loggedIn) {
-    res.redirect('/');
-    return;
-  }
-  res.render('login');
-});
-
-router.get('/signup', (req, res) => {
-  res.render('signup');
+router.get('/new', withAuth, (req, res) => {
+  res.render('new-post', { username: req.session.username });
 });
 
 module.exports = router;
